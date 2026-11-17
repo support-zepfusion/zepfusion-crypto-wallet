@@ -7,9 +7,18 @@
 #![forbid(unsafe_code)]
 
 mod amount;
+mod portfolio;
+mod usdt;
 mod wallet;
 
-pub use amount::{format_base_units, hex_quantity_to_dec, parse_base_units};
+pub use amount::{
+    add_base_units, format_base_units, hex_quantity_to_dec, parse_base_units, scale_base_units,
+};
+pub use portfolio::{
+    unified_portfolio, BalanceObservation, BalanceOutcome, ChainBreakdown, PortfolioDeployment,
+    UnifiedAsset, WalletChainAddress,
+};
+pub use usdt::{tether_usdt_snapshot, ETHEREUM_USDT, SOLANA_USDT, TRON_USDT};
 pub use wallet::Wallet;
 
 use async_trait::async_trait;
@@ -18,14 +27,19 @@ use thiserror::Error;
 
 pub use cofinex_keys::{Curve, DerivationPath, PublicKey, Signature};
 
-/// Networks the signing core knows about.
+/// Networks the wallet core knows about.
 ///
-/// Ethereum mainnet is intentionally absent. The only EVM network with a
-/// working adapter is Sepolia.
+/// EVM networks other than Sepolia are for balance reads. The signer still
+/// builds transactions only for Sepolia.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ChainId {
     Bitcoin,
+    Ethereum,
     EthereumSepolia,
+    Bsc,
+    BscTestnet,
+    Polygon,
+    PolygonAmoy,
     Tron,
     Solana,
     Sui,
@@ -35,11 +49,44 @@ impl ChainId {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Bitcoin => "bitcoin",
+            Self::Ethereum => "ethereum",
             Self::EthereumSepolia => "ethereum-sepolia",
+            Self::Bsc => "bsc",
+            Self::BscTestnet => "bsc-testnet",
+            Self::Polygon => "polygon",
+            Self::PolygonAmoy => "polygon-amoy",
             Self::Tron => "tron",
             Self::Solana => "solana",
             Self::Sui => "sui",
         }
+    }
+
+    /// Short name for a balance row.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Bitcoin => "Bitcoin",
+            Self::Ethereum => "Ethereum",
+            Self::EthereumSepolia => "Ethereum Sepolia",
+            Self::Bsc => "BNB Smart Chain",
+            Self::BscTestnet => "BNB Smart Chain Testnet",
+            Self::Polygon => "Polygon",
+            Self::PolygonAmoy => "Polygon Amoy",
+            Self::Tron => "TRON",
+            Self::Solana => "Solana",
+            Self::Sui => "Sui",
+        }
+    }
+
+    pub fn is_evm(self) -> bool {
+        matches!(
+            self,
+            Self::Ethereum
+                | Self::EthereumSepolia
+                | Self::Bsc
+                | Self::BscTestnet
+                | Self::Polygon
+                | Self::PolygonAmoy
+        )
     }
 }
 
@@ -73,13 +120,32 @@ impl Address {
     }
 }
 
-/// A balance in base units (wei, satoshi, lamport, mist).
+/// A balance in base units (wei, sun, token base units). No floating point.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Balance {
     pub symbol: String,
     pub base_units: String,
     pub decimals: u8,
     pub display: String,
+}
+
+/// How a fungible balance is queried. Native balances use [`ChainAdapter::get_balance`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TokenStandard {
+    Native,
+    Erc20,
+    Trc20,
+    Spl,
+}
+
+/// A fungible token deployment the adapter can read. `contract` is the
+/// chain's display form (EIP-55, TRON base58, or Solana mint).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FungibleToken {
+    pub symbol: String,
+    pub decimals: u8,
+    pub standard: TokenStandard,
+    pub contract: String,
 }
 
 /// Native-asset transfer the user has already reviewed.
@@ -178,6 +244,9 @@ pub enum CoreError {
     Chain(#[from] ChainError),
     #[error("signing path does not match the requested account")]
     PathMismatch,
+    /// The registry view drops testnets. Callers must not add them back.
+    #[error("a testnet deployment cannot be included in a unified balance")]
+    TestnetInUnifiedBalance,
 }
 
 /// One blockchain family.
@@ -196,6 +265,20 @@ pub trait ChainAdapter: Send + Sync {
     fn derive_address(&self, public_key: &PublicKey) -> Result<Address, ChainError>;
 
     async fn get_balance(&self, address: &Address) -> Result<Balance, ChainError>;
+
+    /// Fungible-token balance. The default is "not implemented" so a stub
+    /// adapter keeps compiling. Native assets stay on [`Self::get_balance`].
+    async fn fungible_balance(
+        &self,
+        holder: &Address,
+        token: &FungibleToken,
+    ) -> Result<Balance, ChainError> {
+        let _ = (holder, token);
+        Err(ChainError::not_implemented(
+            self.chain_id(),
+            "fungible_balance",
+        ))
+    }
 
     async fn build_unsigned_tx(&self, intent: &TransferIntent) -> Result<UnsignedTx, ChainError>;
 

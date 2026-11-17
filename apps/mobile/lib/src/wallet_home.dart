@@ -2,7 +2,9 @@ import 'package:material_ui/material_ui.dart';
 
 import 'wallet_api.dart';
 
-/// Testnet shell: create or import a wallet, then read its Sepolia balance.
+/// Test wallet shell: create or import a wallet, then read balances.
+///
+/// Unified assets are read-only. Signing stays on Sepolia.
 class WalletHome extends StatefulWidget {
   const WalletHome({super.key, required this.api});
 
@@ -16,7 +18,9 @@ class _WalletHomeState extends State<WalletHome> {
   final _mnemonic = TextEditingController();
   final _rpc = TextEditingController();
   WalletSnapshot? _wallet;
+  String? _phrase;
   BalanceSnapshot? _balance;
+  List<UnifiedAssetSnapshot> _assets = const [];
   String? _error;
   bool _busy = false;
 
@@ -48,7 +52,9 @@ class _WalletHomeState extends State<WalletHome> {
       final wallet = await widget.api.createTestWallet();
       setState(() {
         _wallet = wallet;
+        _phrase = wallet.mnemonic;
         _balance = null;
+        _assets = const [];
       });
     });
   }
@@ -58,8 +64,22 @@ class _WalletHomeState extends State<WalletHome> {
       final wallet = await widget.api.importTestWallet(_mnemonic.text);
       setState(() {
         _wallet = wallet;
+        _phrase = _mnemonic.text.trim();
         _balance = null;
+        _assets = const [];
       });
+    });
+  }
+
+  Future<void> _refreshUnified() {
+    final phrase = _phrase;
+    if (phrase == null || phrase.isEmpty) {
+      setState(() => _error = 'Create or import a wallet first.');
+      return Future<void>.value();
+    }
+    return _run(() async {
+      final assets = await widget.api.unifiedAssets(mnemonic: phrase);
+      setState(() => _assets = assets);
     });
   }
 
@@ -93,8 +113,8 @@ class _WalletHomeState extends State<WalletHome> {
               child: const Padding(
                 padding: EdgeInsets.all(12),
                 child: Text(
-                  'Sepolia testnet only. Do not send mainnet funds. '
-                  'This screen is a foundation scaffold.',
+                  'Read-only balances. Signing stays on Sepolia. '
+                  'Do not send mainnet funds.',
                 ),
               ),
             ),
@@ -141,7 +161,28 @@ class _WalletHomeState extends State<WalletHome> {
                 const SizedBox(height: 4),
                 SelectableText(wallet.mnemonic!, key: const Key('mnemonic')),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
+              Text('Unified assets', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(
+                'One total per asset. Chain chips are the registry deployments. '
+                'Testnet balances are not added to a mainnet total.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 8),
+              FilledButton.tonal(
+                key: const Key('refresh-unified'),
+                onPressed: _busy ? null : _refreshUnified,
+                child: const Text('Refresh unified assets'),
+              ),
+              if (_assets.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text('No unified balances loaded yet.'),
+                )
+              else
+                ..._assets.map((asset) => _AssetCard(asset: asset)),
+              const SizedBox(height: 24),
               TextField(
                 key: const Key('rpc-field'),
                 controller: _rpc,
@@ -178,6 +219,62 @@ class _WalletHomeState extends State<WalletHome> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _AssetCard extends StatelessWidget {
+  const _AssetCard({required this.asset});
+
+  final UnifiedAssetSnapshot asset;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = asset.display == null
+        ? 'Balance unavailable'
+        : '${asset.display} ${asset.symbol}';
+    final headline = asset.complete ? total : '$total · incomplete';
+    return Card(
+      key: Key('asset-${asset.symbol}'),
+      margin: const EdgeInsets.only(top: 12),
+      child: ExpansionTile(
+        key: Key('expand-${asset.symbol}'),
+        title: Text(asset.name),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(headline, key: Key('asset-total-${asset.symbol}')),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final chain in asset.chains)
+                  Chip(
+                    key: Key('chip-${asset.symbol}-${chain.chainId}'),
+                    label: Text(
+                      chain.display == null
+                          ? chain.label
+                          : '${chain.label} ${chain.display}',
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        children: [
+          for (final chain in asset.chains)
+            ListTile(
+              key: Key('chain-${asset.symbol}-${chain.chainId}'),
+              title: Text(chain.label),
+              subtitle: Text(
+                chain.error ??
+                    '${chain.display} ${asset.symbol}'
+                        '${chain.baseUnits == null ? '' : '\n${chain.baseUnits} base units'}',
+              ),
+            ),
+        ],
       ),
     );
   }
