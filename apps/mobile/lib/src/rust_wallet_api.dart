@@ -73,4 +73,13 @@ class RustWalletApi implements WalletApi {
       display: balance.display,
     );
   }
+
+  @override
+  Future<List<UnifiedAssetSnapshot>> unifiedAssets({
+    required String mnemonic,
+  }) async {
+    await _ensureReady();
+    final body = await rust.unifiedAssets(mnemonic: mnemonic);
+    return parseUnifiedAssets(body);
+  }
 }

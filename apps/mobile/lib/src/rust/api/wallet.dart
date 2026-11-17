@@ -26,6 +26,10 @@ Future<ImportedWallet> importTestWallet({required String mnemonic}) =>
 Future<BalanceView> sepoliaBalance({required String address, required String rpcUrl}) =>
     RustLib.instance.api.crateApiWalletSepoliaBalance(address: address, rpcUrl: rpcUrl);
 
+/// Unified USDT balances as JSON. Amounts are decimal strings. Read-only.
+Future<String> unifiedAssets({required String mnemonic}) =>
+    RustLib.instance.api.crateApiWalletUnifiedAssets(mnemonic: mnemonic);
+
 class BalanceView {
   final String symbol;
   final String baseUnits;

@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use cofinex_core::{
     format_base_units, hex_quantity_to_dec, parse_base_units, Address, Balance, ChainAdapter,
-    ChainError, ChainId, PublicKey, Signature, SignedTx, TransferIntent, TxId, TxStatus,
-    UnsignedTx,
+    ChainError, ChainId, FungibleToken, PublicKey, Signature, SignedTx, TokenStandard,
+    TransferIntent, TxId, TxStatus, UnsignedTx,
 };
 use cofinex_keys::{Curve, DerivationPath};
 use serde::{Deserialize, Serialize};
@@ -10,29 +10,38 @@ use serde_json::{json, Value};
 use sha3::{Digest, Keccak256};
 
 use super::address::{address_from_public_key, parse_evm_address};
+use super::network::{EvmNetwork, SEPOLIA_CHAIN_ID};
 use super::rlp::{eip1559_chain_id, Eip1559};
 use super::rpc::{EvmRpc, HttpRpc};
-use super::SEPOLIA_CHAIN_ID;
 
 const NATIVE_GAS: u64 = 21_000;
-const ETH_DECIMALS: u8 = 18;
 
-/// Sepolia EVM adapter.
+/// EVM adapter shared by Ethereum, BNB Smart Chain, Polygon, and their testnets.
 ///
 /// `R` is the JSON-RPC transport. Tests substitute a scripted transport. The
-/// signer is not a type parameter: signing happens outside this type.
+/// signer is not a type parameter: signing happens outside this type, and this
+/// adapter will only build or broadcast a Sepolia transaction.
 pub struct EvmAdapter<R: EvmRpc> {
+    network: EvmNetwork,
     rpc: Option<R>,
 }
 
 impl EvmAdapter<HttpRpc> {
-    /// `rpc_url` overrides the process environment when it is non-empty.
-    /// An empty value reads `COFINEX_SEPOLIA_RPC_URL`. Address derivation
-    /// works with no URL; balance and broadcast do not.
+    /// Sepolia. `rpc_url` overrides `COFINEX_SEPOLIA_RPC_URL` when it is non-empty.
+    /// Address derivation works with no URL; balance and broadcast do not.
     pub fn sepolia(rpc_url: Option<String>) -> Result<Self, ChainError> {
+        Self::for_network(EvmNetwork::SEPOLIA, rpc_url)
+    }
+
+    /// Read-only constructor for any [`EvmNetwork`].
+    ///
+    /// An empty `rpc_url` reads `network.rpc_env` (for example
+    /// `COFINEX_ETHEREUM_RPC_URL`). Signing stays disabled unless the network
+    /// is Sepolia.
+    pub fn for_network(network: EvmNetwork, rpc_url: Option<String>) -> Result<Self, ChainError> {
         let configured = match rpc_url {
             Some(url) if !url.trim().is_empty() => Some(url),
-            _ => std::env::var("COFINEX_SEPOLIA_RPC_URL").ok(),
+            _ => std::env::var(network.rpc_env).ok(),
         };
         let rpc = match configured
             .map(|url| url.trim().to_string())
@@ -41,43 +50,73 @@ impl EvmAdapter<HttpRpc> {
             Some(url) => Some(HttpRpc::new(url)?),
             None => None,
         };
-        Ok(Self { rpc })
+        Ok(Self { network, rpc })
     }
 }
 
 impl<R: EvmRpc> EvmAdapter<R> {
+    /// Sepolia adapter with a scripted transport.
     pub fn with_rpc(rpc: R) -> Self {
-        Self { rpc: Some(rpc) }
+        Self::with_network(EvmNetwork::SEPOLIA, rpc)
+    }
+
+    pub fn with_network(network: EvmNetwork, rpc: R) -> Self {
+        Self {
+            network,
+            rpc: Some(rpc),
+        }
+    }
+
+    pub fn network(&self) -> EvmNetwork {
+        self.network
     }
 
     async fn rpc(&self) -> Result<&R, ChainError> {
-        self.rpc.as_ref().ok_or_else(|| {
-            ChainError::rpc(
-                "Sepolia RPC URL is not configured. Set COFINEX_SEPOLIA_RPC_URL or pass a URL.",
-            )
-        })
+        self.rpc
+            .as_ref()
+            .ok_or_else(|| ChainError::rpc(self.missing_rpc_message()))
     }
 
-    async fn ensure_sepolia(&self) -> Result<(), ChainError> {
+    fn missing_rpc_message(&self) -> String {
+        if self.network.evm_chain_id == SEPOLIA_CHAIN_ID {
+            "Sepolia RPC URL is not configured. Set COFINEX_SEPOLIA_RPC_URL or pass a URL."
+                .to_string()
+        } else {
+            format!(
+                "{} RPC URL is not configured. Set {} or pass a URL.",
+                self.network.name, self.network.rpc_env
+            )
+        }
+    }
+
+    async fn ensure_network(&self) -> Result<(), ChainError> {
         let value = self.rpc().await?.request("eth_chainId", Vec::new()).await?;
         let text = value
             .as_str()
             .ok_or_else(|| ChainError::rpc("eth_chainId was not a string"))?;
         let actual = parse_u64_quantity(text)?;
-        if actual != SEPOLIA_CHAIN_ID {
+        if actual != self.network.evm_chain_id {
             return Err(ChainError::WrongNetwork {
-                expected: SEPOLIA_CHAIN_ID,
+                expected: self.network.evm_chain_id,
                 actual,
             });
         }
         Ok(())
+    }
+
+    fn ensure_signing(&self, operation: &'static str) -> Result<(), ChainError> {
+        if self.network.signing_enabled() {
+            Ok(())
+        } else {
+            Err(ChainError::not_implemented(self.network.chain, operation))
+        }
     }
 }
 
 #[async_trait]
 impl<R: EvmRpc> ChainAdapter for EvmAdapter<R> {
     fn chain_id(&self) -> ChainId {
-        ChainId::EthereumSepolia
+        self.network.chain
     }
 
     fn curve(&self) -> Curve {
@@ -90,12 +129,12 @@ impl<R: EvmRpc> ChainAdapter for EvmAdapter<R> {
     }
 
     fn derive_address(&self, public_key: &PublicKey) -> Result<Address, ChainError> {
-        address_from_public_key(public_key)
+        address_from_public_key(public_key, self.network.chain)
     }
 
     async fn get_balance(&self, address: &Address) -> Result<Balance, ChainError> {
-        self.ensure_sepolia().await?;
-        if address.chain() != ChainId::EthereumSepolia {
+        self.ensure_network().await?;
+        if address.chain() != self.network.chain {
             return Err(ChainError::InvalidAddress);
         }
         let parsed = parse_evm_address(address.text())?;
@@ -105,26 +144,47 @@ impl<R: EvmRpc> ChainAdapter for EvmAdapter<R> {
             .await?
             .request("eth_getBalance", vec![json!(canonical), json!("latest")])
             .await?;
-        let hex_value = value
-            .as_str()
-            .ok_or_else(|| ChainError::rpc("balance was not a hex quantity"))?;
-        let base_units = hex_quantity_to_dec(hex_value)
-            .ok_or_else(|| ChainError::rpc("balance was not a hex quantity"))?;
-        let display =
-            format_base_units(&base_units, ETH_DECIMALS).ok_or(ChainError::InvalidAmount)?;
-        Ok(Balance {
-            symbol: "ETH".to_string(),
-            base_units,
-            decimals: ETH_DECIMALS,
-            display,
-        })
+        balance_from_hex(
+            value.as_str(),
+            self.network.native_symbol,
+            self.network.native_decimals,
+        )
+    }
+
+    async fn fungible_balance(
+        &self,
+        holder: &Address,
+        token: &FungibleToken,
+    ) -> Result<Balance, ChainError> {
+        if token.standard != TokenStandard::Erc20 {
+            return Err(ChainError::not_implemented(
+                self.network.chain,
+                "fungible_balance",
+            ));
+        }
+        self.ensure_network().await?;
+        if holder.chain() != self.network.chain {
+            return Err(ChainError::InvalidAddress);
+        }
+        let holder_bytes = parse_evm_address(holder.text())?;
+        let contract_bytes = parse_evm_address(&token.contract)?;
+        let contract = super::address::format_eip55(&contract_bytes);
+        let data = erc20_balance_of_data(&holder_bytes);
+        let value = self
+            .rpc()
+            .await?
+            .request(
+                "eth_call",
+                vec![json!({ "to": contract, "data": data }), json!("latest")],
+            )
+            .await?;
+        balance_from_hex(value.as_str(), &token.symbol, token.decimals)
     }
 
     async fn build_unsigned_tx(&self, intent: &TransferIntent) -> Result<UnsignedTx, ChainError> {
-        self.ensure_sepolia().await?;
-        if intent.from.chain() != ChainId::EthereumSepolia
-            || intent.to.chain() != ChainId::EthereumSepolia
-        {
+        self.ensure_network().await?;
+        self.ensure_signing("build_unsigned_tx")?;
+        if intent.from.chain() != self.network.chain || intent.to.chain() != self.network.chain {
             return Err(ChainError::InvalidAddress);
         }
         let from = super::address::format_eip55(&parse_evm_address(intent.from.text())?);
@@ -172,7 +232,7 @@ impl<R: EvmRpc> ChainAdapter for EvmAdapter<R> {
         let body = serde_json::to_vec(&StoredTx::from_tx(&tx, &to_text))
             .map_err(|_| ChainError::InvalidTransaction)?;
         Ok(UnsignedTx {
-            chain: ChainId::EthereumSepolia,
+            chain: self.network.chain,
             curve: Curve::Secp256k1,
             path: intent.path.clone(),
             message: digest.to_vec(),
@@ -180,7 +240,7 @@ impl<R: EvmRpc> ChainAdapter for EvmAdapter<R> {
             body,
             to: to_text,
             amount_base_units: intent.amount_base_units.clone(),
-            symbol: "ETH".to_string(),
+            symbol: self.network.native_symbol.to_string(),
         })
     }
 
@@ -189,7 +249,8 @@ impl<R: EvmRpc> ChainAdapter for EvmAdapter<R> {
         unsigned: &UnsignedTx,
         signature: &Signature,
     ) -> Result<SignedTx, ChainError> {
-        if unsigned.chain != ChainId::EthereumSepolia
+        self.ensure_signing("attach_signature")?;
+        if unsigned.chain != self.network.chain
             || signature.curve() != Curve::Secp256k1
             || signature.as_bytes().len() != 65
         {
@@ -214,13 +275,14 @@ impl<R: EvmRpc> ChainAdapter for EvmAdapter<R> {
             });
         }
         Ok(SignedTx {
-            chain: ChainId::EthereumSepolia,
+            chain: self.network.chain,
             raw,
         })
     }
 
     async fn broadcast_signed_tx(&self, tx: &SignedTx) -> Result<TxId, ChainError> {
-        if tx.chain != ChainId::EthereumSepolia {
+        self.ensure_signing("broadcast_signed_tx")?;
+        if tx.chain != self.network.chain {
             return Err(ChainError::InvalidTransaction);
         }
         let chain_id = eip1559_chain_id(&tx.raw)?;
@@ -230,7 +292,7 @@ impl<R: EvmRpc> ChainAdapter for EvmAdapter<R> {
                 actual: chain_id,
             });
         }
-        self.ensure_sepolia().await?;
+        self.ensure_network().await?;
         let raw = format!("0x{}", hex::encode(&tx.raw));
         let value = self
             .rpc()
@@ -248,7 +310,7 @@ impl<R: EvmRpc> ChainAdapter for EvmAdapter<R> {
         if !is_tx_hash(tx_id.as_str()) {
             return Err(ChainError::InvalidTransaction);
         }
-        self.ensure_sepolia().await?;
+        self.ensure_network().await?;
         let rpc = self.rpc().await?;
         let receipt = rpc
             .request("eth_getTransactionReceipt", vec![json!(tx_id.as_str())])
@@ -279,6 +341,33 @@ impl<R: EvmRpc> ChainAdapter for EvmAdapter<R> {
             block_number,
         })
     }
+}
+
+/// ABI calldata for `balanceOf(address)`. The selector is keccak256("balanceOf(address)")[..4].
+pub(crate) fn erc20_balance_of_data(holder: &[u8; 20]) -> String {
+    let hash = Keccak256::digest(b"balanceOf(address)");
+    let mut data = Vec::with_capacity(36);
+    data.extend_from_slice(&hash[..4]);
+    data.extend_from_slice(&[0u8; 12]);
+    data.extend_from_slice(holder);
+    format!("0x{}", hex::encode(data))
+}
+
+fn balance_from_hex(
+    value: Option<&str>,
+    symbol: &str,
+    decimals: u8,
+) -> Result<Balance, ChainError> {
+    let hex_value = value.ok_or_else(|| ChainError::rpc("balance was not a hex quantity"))?;
+    let base_units = hex_quantity_to_dec(hex_value)
+        .ok_or_else(|| ChainError::rpc("balance was not a hex quantity"))?;
+    let display = format_base_units(&base_units, decimals).ok_or(ChainError::InvalidAmount)?;
+    Ok(Balance {
+        symbol: symbol.to_string(),
+        base_units,
+        decimals,
+        display,
+    })
 }
 
 #[derive(Serialize, Deserialize)]

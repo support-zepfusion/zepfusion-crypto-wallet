@@ -15,6 +15,8 @@ cofinex-chains = { path = "../../../crates/chains" }
 cofinex-core = { path = "../../../crates/core" }
 cofinex-signer = { path = "../../../crates/signer" }
 flutter_rust_bridge = "=2.13.0"
+serde.workspace = true
+serde_json.workspace = true
 tokio.workspace = true
 zeroize.workspace = true
 

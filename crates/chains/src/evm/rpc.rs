@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use cofinex_core::ChainError;
 use serde_json::{json, Value};
 
-/// JSON-RPC client used by the Sepolia adapter. Implementations must not log
+/// JSON-RPC client used by the EVM adapter. Implementations must not log
 /// request bodies: a signed transaction is not a key, but it is still not
 /// something to print while debugging.
 #[async_trait]
@@ -23,7 +23,7 @@ impl HttpRpc {
         let trimmed = url.trim();
         if !(trimmed.starts_with("https://") || trimmed.starts_with("http://")) {
             return Err(ChainError::rpc(
-                "Sepolia RPC URL must start with http:// or https://",
+                "RPC URL must start with http:// or https://",
             ));
         }
         let client = reqwest::Client::builder()

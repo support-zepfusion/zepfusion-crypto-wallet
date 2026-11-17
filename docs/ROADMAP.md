@@ -8,13 +8,16 @@ until counsel reviews the Cofinex MPC share and the email escrow.
 
 ## Foundation (this repository)
 
-Scaffold only.
+Scaffold, plus a read-only unified USDT balance.
 
-- Rust workspace: keys, swappable signer, chain-adapter trait, Sepolia adapter.
+- Rust workspace: keys, swappable signer, chain-adapter trait, Sepolia signing adapter.
+- The EVM adapter also reads native and ERC-20 balances on Ethereum, BNB Smart Chain, Polygon, and their testnets. It does not sign on those networks.
+- TRON reads native TRX and TRC-20 balances, and derives `m/44'/195'/0'/0/0`. It does not sign.
+- Solana SPL balances are still a stub. Bitcoin and Sui still return "not implemented".
+- `unified_portfolio` sums one asset across chains with decimal strings and refuses to mix a testnet deployment into that total.
 - Local BIP-39 signer. The 2-of-3 MPC signer is a stub that cannot sign.
-- Flutter shell that can create or import a test wallet and read a Sepolia balance.
-- PostgreSQL token-registry schema and a cited seed. No registry API.
-- Bitcoin, TRON, Solana, and Sui adapters compile and return "not implemented".
+- Flutter shell that can create or import a test wallet, show unified USDT with a per-chain breakdown, and read a Sepolia balance.
+- PostgreSQL token-registry schema and a cited seed, including USDT on the chains Tether publishes (Ethereum, TRON, Solana). No registry API. BSC and Polygon USDT are not in that seed.
 
 The only network the signer will talk to is Sepolia (chain id 11155111).
 Signed transactions embed that chain id.
@@ -55,4 +58,4 @@ In the order the vision describes them, still without dates:
 - Inventing a signing protocol. We use audited libraries or we do not ship MPC.
 - Holding a full private key on a Cofinex server.
 - Aggregating testnet balances into a mainnet asset. The registry view refuses that.
-- Mainnet RPC URLs or mainnet private keys in the repo.
+- Mainnet private keys, and any signer that can build a mainnet transaction. Public read-only RPC URLs are environment configuration for balance display. They are not used to sign.

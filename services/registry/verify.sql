@@ -31,4 +31,61 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'missing cited Sepolia USDC deployment';
     END IF;
+
+    IF (
+        SELECT count(*) FROM unified_asset_deployments WHERE asset_id = 'tether:usdt'
+    ) <> 3 THEN
+        RAISE EXCEPTION 'tether:usdt should have 3 mainnet deployments';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM unified_asset_deployments
+        WHERE asset_id = 'tether:usdt'
+          AND chain_id IN ('bsc', 'polygon')
+    ) THEN
+        RAISE EXCEPTION 'BSC and Polygon are not Tether-published USD₮ deployments';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM token_deployments
+        WHERE asset_id LIKE 'tether:usdt%'
+          AND chain_id IN (
+              'ethereum-sepolia', 'solana-devnet', 'bsc', 'polygon'
+          )
+    ) THEN
+        RAISE EXCEPTION 'USDT must not be seeded on an unverified chain';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM token_deployments
+        WHERE asset_id = 'tether:usdt'
+          AND chain_id = 'ethereum'
+          AND contract_address = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
+          AND decimals = 6
+          AND include_in_unified_balance
+    ) THEN
+        RAISE EXCEPTION 'missing cited Ethereum USDT deployment';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM token_deployments
+        WHERE asset_id = 'tether:usdt'
+          AND chain_id = 'tron'
+          AND contract_address = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
+          AND decimals = 6
+          AND include_in_unified_balance
+    ) THEN
+        RAISE EXCEPTION 'missing cited TRON USDT deployment';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM token_deployments
+        WHERE asset_id = 'tether:usdt'
+          AND chain_id = 'solana'
+          AND contract_address = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
+          AND decimals = 6
+          AND include_in_unified_balance
+    ) THEN
+        RAISE EXCEPTION 'missing cited Solana USDT deployment';
+    END IF;
 END $$;

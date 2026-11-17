@@ -6,6 +6,9 @@ use cofinex_core::{
 use cofinex_keys::{Curve, DerivationPath};
 
 /// Compiling placeholder for a chain family that is not implemented yet.
+///
+/// Solana SPL `balanceOf` stays here: [`ChainAdapter::fungible_balance`](cofinex_core::ChainAdapter::fungible_balance)
+/// returns "not implemented". TRON has a real read-only adapter.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StubAdapter {
     chain: ChainId,
@@ -26,7 +29,14 @@ impl ChainAdapter for StubAdapter {
     fn curve(&self) -> Curve {
         match self.chain {
             ChainId::Solana | ChainId::Sui => Curve::Ed25519,
-            ChainId::Bitcoin | ChainId::Tron | ChainId::EthereumSepolia => Curve::Secp256k1,
+            ChainId::Bitcoin
+            | ChainId::Tron
+            | ChainId::Ethereum
+            | ChainId::EthereumSepolia
+            | ChainId::Bsc
+            | ChainId::BscTestnet
+            | ChainId::Polygon
+            | ChainId::PolygonAmoy => Curve::Secp256k1,
         }
     }
 
@@ -36,7 +46,12 @@ impl ChainAdapter for StubAdapter {
             ChainId::Tron => DerivationPath::bip44(Curve::Secp256k1, 195, account, 0, 0),
             ChainId::Solana => DerivationPath::solana_account(account),
             ChainId::Sui => DerivationPath::bip44(Curve::Ed25519, 784, account, 0, 0),
-            ChainId::EthereumSepolia => DerivationPath::bip44(Curve::Secp256k1, 60, account, 0, 0),
+            ChainId::Ethereum
+            | ChainId::EthereumSepolia
+            | ChainId::Bsc
+            | ChainId::BscTestnet
+            | ChainId::Polygon
+            | ChainId::PolygonAmoy => DerivationPath::bip44(Curve::Secp256k1, 60, account, 0, 0),
         };
         path.map_err(|_| ChainError::InvalidTransaction)
     }

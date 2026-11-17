@@ -83,6 +83,8 @@ abstract class RustLibApi extends BaseApi {
     required String address,
     required String rpcUrl,
   });
+
+  Future<String> crateApiWalletUnifiedAssets({required String mnemonic});
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -164,6 +166,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiWalletSepoliaBalanceConstMeta =>
       const TaskConstMeta(debugName: "sepolia_balance", argNames: ["address", "rpcUrl"]);
+
+  @override
+  Future<String> crateApiWalletUnifiedAssets({required String mnemonic}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(mnemonic, serializer);
+          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4, port: port_);
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiWalletUnifiedAssetsConstMeta,
+        argValues: [mnemonic],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiWalletUnifiedAssetsConstMeta =>
+      const TaskConstMeta(debugName: "unified_assets", argNames: ["mnemonic"]);
 
   @protected
   String dco_decode_String(dynamic raw) {

@@ -1,17 +1,23 @@
 //! Blockchain adapters.
 //!
-//! The Sepolia adapter speaks JSON-RPC and refuses any `eth_chainId` other
-//! than 11155111. Signed transactions also embed that chain id, so a mainnet
-//! node will not accept them. Bitcoin, TRON, Solana, and Sui compile and
-//! return [`ChainError::NotImplemented`](cofinex_core::ChainError::NotImplemented).
+//! The EVM adapter reads native and ERC-20 balances for Ethereum, BNB Smart
+//! Chain, Polygon, and their testnets. It checks `eth_chainId` against the
+//! configured network. Signing and broadcast stay on Sepolia (chain id
+//! 11155111): a signed transaction embeds that chain id, and other networks
+//! return "not implemented" for every signing method.
+//!
+//! TRON reads native TRX and TRC-20 `balanceOf` over a TronGrid-compatible
+//! HTTP API. It does not sign. Solana SPL balances are still a stub.
 
 #![forbid(unsafe_code)]
 
 mod evm;
 mod stub;
+mod tron;
 
-pub use evm::{EvmAdapter, HttpRpc, SEPOLIA_CHAIN_ID};
+pub use evm::{EvmAdapter, EvmNetwork, HttpRpc, SEPOLIA_CHAIN_ID};
 pub use stub::StubAdapter;
+pub use tron::{HttpTronRpc, TronAdapter};
 
 use cofinex_core::ChainId;
 
@@ -23,7 +29,6 @@ use cofinex_core::ChainId;
 pub fn stub_adapters() -> Vec<StubAdapter> {
     vec![
         StubAdapter::new(ChainId::Bitcoin),
-        StubAdapter::new(ChainId::Tron),
         StubAdapter::new(ChainId::Solana),
         StubAdapter::new(ChainId::Sui),
     ]

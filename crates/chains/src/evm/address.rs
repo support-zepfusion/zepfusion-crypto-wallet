@@ -2,8 +2,11 @@ use cofinex_core::{Address, ChainError, ChainId, PublicKey};
 use cofinex_keys::Curve;
 use sha3::{Digest, Keccak256};
 
-pub fn address_from_public_key(public_key: &PublicKey) -> Result<Address, ChainError> {
-    if public_key.curve() != Curve::Secp256k1 {
+pub fn address_from_public_key(
+    public_key: &PublicKey,
+    chain: ChainId,
+) -> Result<Address, ChainError> {
+    if public_key.curve() != Curve::Secp256k1 || !chain.is_evm() {
         return Err(ChainError::InvalidPublicKey);
     }
     let bytes = public_key.as_bytes();
@@ -17,10 +20,7 @@ pub fn address_from_public_key(public_key: &PublicKey) -> Result<Address, ChainE
     let hash = Keccak256::digest(raw);
     let mut address = [0u8; 20];
     address.copy_from_slice(&hash[12..]);
-    Ok(Address::new(
-        ChainId::EthereumSepolia,
-        format_eip55(&address),
-    ))
+    Ok(Address::new(chain, format_eip55(&address)))
 }
 
 pub fn parse_evm_address(text: &str) -> Result<[u8; 20], ChainError> {
@@ -83,6 +83,17 @@ mod tests {
         assert_eq!(
             format_eip55(&address),
             "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"
+        );
+    }
+
+    #[test]
+    fn tether_usdt_uses_the_published_eip55_form() {
+        let bytes = hex::decode("dac17f958d2ee523a2206206994597c13d831ec7").unwrap();
+        let mut address = [0u8; 20];
+        address.copy_from_slice(&bytes);
+        assert_eq!(
+            format_eip55(&address),
+            "0xdAC17F958D2ee523a2206206994597C13D831ec7"
         );
     }
 }
