@@ -1,0 +1,46 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/keys",
+    "crates/signer",
+    "crates/core",
+    "crates/chains",
+    "apps/mobile/rust",
+]
+default-members = [
+    "crates/keys",
+    "crates/signer",
+    "crates/core",
+    "crates/chains",
+    "apps/mobile/rust",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+
+[workspace.dependencies]
+async-trait = "0.1.83"
+bip32 = { version = "0.5.3", default-features = false, features = ["secp256k1", "alloc"] }
+bip39 = { version = "2.2.0", features = ["rand"] }
+ed25519-dalek = { version = "2.1.1", features = ["zeroize"] }
+hex = "0.4.3"
+hmac = "0.12.1"
+k256 = { version = "0.13.4", features = ["ecdsa"] }
+reqwest = { version = "0.12.15", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.132"
+sha2 = "0.10.8"
+sha3 = "0.10.8"
+thiserror = "1.0.69"
+tokio = { version = "1.40.0", features = ["rt-multi-thread", "macros", "time", "sync"] }
+zeroize = { version = "1.8.1", features = ["derive"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"

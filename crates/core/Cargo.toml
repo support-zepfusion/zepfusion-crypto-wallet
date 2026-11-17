@@ -1,0 +1,17 @@
+[package]
+name = "cofinex-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Chain-agnostic wallet core: adapter trait, amounts, and signing orchestration"
+
+[dependencies]
+async-trait.workspace = true
+cofinex-keys = { path = "../keys" }
+cofinex-signer = { path = "../signer" }
+hex.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
