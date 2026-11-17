@@ -1,0 +1,27 @@
+[package]
+name = "cofinex-wallet-bridge"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Flutter bridge for the Cofinex test wallet shell"
+
+[lib]
+name = "cofinex_wallet_bridge"
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+cofinex-chains = { path = "../../../crates/chains" }
+cofinex-core = { path = "../../../crates/core" }
+cofinex-signer = { path = "../../../crates/signer" }
+flutter_rust_bridge = "=2.13.0"
+tokio.workspace = true
+zeroize.workspace = true
+
+# Generated bridge code uses unsafe FFI. The other crates forbid it.
+[lints.rust]
+unsafe_code = "allow"
+
+[lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
