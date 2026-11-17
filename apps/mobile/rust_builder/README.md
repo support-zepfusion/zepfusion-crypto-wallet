@@ -7,3 +7,5 @@ Builds `libcofinex_wallet_bridge` during `flutter run` and `flutter build apk`.
 - The NDK prebuilt directory is chosen from the host that is actually installed (including `darwin-arm64`).
 - Android output is limited to `arm64-v8a` and `x86_64`.
 - The copied library name follows `[lib] name` (`cofinex_wallet_bridge`), not the hyphenated package name.
+- An installed NDK is recognized by `package.xml` or `source.properties` (Android Studio omits `package.xml`).
+- A failed build tool, or a run that does not emit `libcofinex_wallet_bridge.so`, fails the Gradle task.

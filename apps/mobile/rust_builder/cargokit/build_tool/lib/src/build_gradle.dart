@@ -42,10 +42,19 @@ class BuildGradle {
       final outputDir = path.join(Environment.outputDir, target.android!);
       Directory(outputDir).createSync(recursive: true);
 
+      final copied = <String>[];
       for (final lib in libs) {
         if (lib.type == AritifactType.dylib) {
-          File(lib.path).copySync(path.join(outputDir, lib.finalFileName));
+          final dest = path.join(outputDir, lib.finalFileName);
+          File(lib.path).copySync(dest);
+          copied.add(dest);
         }
+      }
+      if (copied.isEmpty) {
+        throw Exception(
+          'Cargokit produced no shared library for ${target.android} '
+          '(expected lib${environment.crateInfo.libName}.so in $outputDir).',
+        );
       }
     }
   }

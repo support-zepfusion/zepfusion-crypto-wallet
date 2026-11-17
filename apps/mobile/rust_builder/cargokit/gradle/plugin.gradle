@@ -67,7 +67,7 @@ abstract class CargoKitBuildTask extends DefaultTask {
             }
         }
 
-        execOperations.exec {
+        def execResult = execOperations.exec {
             executable path
             args "build-gradle"
             environment "CARGOKIT_ROOT_PROJECT_DIR", rootProjectDir
@@ -82,6 +82,28 @@ abstract class CargoKitBuildTask extends DefaultTask {
             environment "CARGOKIT_MIN_SDK_VERSION", minSdkVersion
             environment "CARGOKIT_TARGET_PLATFORMS", targetPlatforms.join(",")
             environment "CARGOKIT_JAVA_HOME", System.properties['java.home']
+            setIgnoreExitValue(true)
+        }
+        if (execResult.exitValue != 0) {
+            throw new GradleException("Cargokit build failed (exit ${execResult.exitValue}). The Android build will not continue without lib${project.cargokit.libname}.so.")
+        }
+
+        // A non-zero exit is not enough on its own: the tool can exit 0 and
+        // still copy nothing. Refuse to let mergeNativeLibs package that APK.
+        def abiForPlatform = [
+                "android-arm"  : "armeabi-v7a",
+                "android-arm64": "arm64-v8a",
+                "android-x64"  : "x86_64",
+        ]
+        for (String platform : targetPlatforms) {
+            def abi = abiForPlatform[platform]
+            if (abi == null) {
+                throw new GradleException("Unsupported Android target platform: ${platform}")
+            }
+            def soFile = new File(outputDir, "${abi}/lib${project.cargokit.libname}.so")
+            if (!soFile.isFile()) {
+                throw new GradleException("Cargokit did not produce ${soFile}. Refusing to package an APK without lib${project.cargokit.libname}.so.")
+            }
         }
     }
 }

@@ -82,10 +82,16 @@ if not exist "%PRECOMPILED%" (
 )
 
 "%DART%" "%PRECOMPILED%" %*
+set BUILD_EXIT=%ERRORLEVEL%
 
 REM 253 means invalid snapshot version.
-If %ERRORLEVEL% equ 253 (
+If %BUILD_EXIT% equ 253 (
     "%DART%" pub get --no-precompile
     "%DART%" compile kernel bin/build_tool_runner.dart
     "%DART%" "%PRECOMPILED%" %*
+    set BUILD_EXIT=!ERRORLEVEL!
 )
+
+REM The IF test above resets ERRORLEVEL when it does not match. Without this,
+REM a failed Rust build looks successful and Gradle packages an APK with no .so.
+exit /b %BUILD_EXIT%
