@@ -7,7 +7,8 @@ plugins {
 android {
     namespace = "io.cofinex.cofinex_wallet"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Flutter 3.50 default. The Rust bridge is cross-compiled with this NDK.
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -27,6 +28,13 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        ndk {
+            // Flutter's plugin first fills abiFilters with armeabi-v7a, arm64-v8a,
+            // and x86_64. Replace that set: the bridge is only built for arm64
+            // phones and the x86_64 emulator.
+            abiFilters.clear()
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
     }
 
     buildTypes {

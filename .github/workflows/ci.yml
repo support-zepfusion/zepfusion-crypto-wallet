@@ -38,6 +38,39 @@ jobs:
       - run: flutter analyze
       - run: flutter test
 
+  android:
+    name: Android debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+      - name: Install the Flutter 3.50 NDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" "platform-tools"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.50.0"
+          channel: stable
+          cache: true
+      - name: Build the debug APK
+        working-directory: apps/mobile
+        run: |
+          flutter pub get
+          flutter build apk --debug
+      - name: The APK contains the Rust bridge for both ABIs
+        run: |
+          apk=apps/mobile/build/app/outputs/flutter-apk/app-debug.apk
+          unzip -l "$apk" | tee /tmp/apk-listing.txt
+          grep -q 'lib/arm64-v8a/libcofinex_wallet_bridge.so' /tmp/apk-listing.txt
+          grep -q 'lib/x86_64/libcofinex_wallet_bridge.so' /tmp/apk-listing.txt
+
   registry:
     name: Registry schema
     runs-on: ubuntu-latest

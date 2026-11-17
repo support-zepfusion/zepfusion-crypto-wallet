@@ -1,0 +1,241 @@
+import java.nio.file.Paths
+import javax.inject.Inject
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.gradle.process.ExecOperations
+
+CargoKitPlugin.file = buildscript.sourceFile
+
+apply plugin: CargoKitPlugin
+
+class CargoKitExtension {
+    String manifestDir; // Relative path to folder containing Cargo.toml
+    String libname; // Library name within Cargo.toml. Must be a cdylib
+}
+
+abstract class CargoKitBuildTask extends DefaultTask {
+
+    @Inject
+    abstract ExecOperations getExecOperations()
+
+    @Input
+    String buildMode
+
+    @Input
+    String buildDir
+
+    @Input
+    String outputDir
+
+    @Input
+    String ndkVersion
+
+    @Input
+    String sdkDirectory
+
+    @Input
+    int compileSdkVersion;
+
+    @Input
+    int minSdkVersion;
+
+    @Input
+    String pluginFile
+
+    @Input
+    List<String> targetPlatforms
+
+    @TaskAction
+    def build() {
+        if (project.cargokit.manifestDir == null) {
+            throw new GradleException("Property 'manifestDir' must be set on cargokit extension");
+        }
+
+        if (project.cargokit.libname == null) {
+            throw new GradleException("Property 'libname' must be set on cargokit extension");
+        }
+
+        def executableName = Os.isFamily(Os.FAMILY_WINDOWS) ? "run_build_tool.cmd" : "run_build_tool.sh"
+        def path = Paths.get(new File(pluginFile).parent, "..", executableName);
+
+        def manifestDir = Paths.get(project.buildscript.sourceFile.parent, project.cargokit.manifestDir)
+
+        def rootProjectDir = project.rootProject.projectDir
+
+        if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
+            execOperations.exec {
+                commandLine 'chmod', '+x', path
+            }
+        }
+
+        execOperations.exec {
+            executable path
+            args "build-gradle"
+            environment "CARGOKIT_ROOT_PROJECT_DIR", rootProjectDir
+            environment "CARGOKIT_TOOL_TEMP_DIR", "${buildDir}/build_tool"
+            environment "CARGOKIT_MANIFEST_DIR", manifestDir
+            environment "CARGOKIT_CONFIGURATION", buildMode
+            environment "CARGOKIT_TARGET_TEMP_DIR", buildDir
+            environment "CARGOKIT_OUTPUT_DIR", outputDir
+            environment "CARGOKIT_NDK_VERSION", ndkVersion
+            environment "CARGOKIT_SDK_DIR", sdkDirectory
+            environment "CARGOKIT_COMPILE_SDK_VERSION", compileSdkVersion
+            environment "CARGOKIT_MIN_SDK_VERSION", minSdkVersion
+            environment "CARGOKIT_TARGET_PLATFORMS", targetPlatforms.join(",")
+            environment "CARGOKIT_JAVA_HOME", System.properties['java.home']
+        }
+    }
+}
+
+class CargoKitPlugin implements Plugin<Project> {
+
+    static String file;
+
+    private Plugin findFlutterPlugin(Project rootProject) {
+        _findFlutterPlugin(rootProject.childProjects)
+    }
+
+   private Plugin _findFlutterPlugin(Map projects) {
+        for (project in projects) {
+            for (plugin in project.value.getPlugins()) {
+                if (plugin.class.name == "com.flutter.gradle.FlutterPlugin" || plugin.class.name == "FlutterPlugin") {
+                    return plugin;
+                }
+            }
+            def plugin = _findFlutterPlugin(project.value.childProjects);
+            if (plugin != null) {
+                return plugin;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    void apply(Project project) {
+        def plugin = findFlutterPlugin(project.rootProject);
+
+        project.extensions.create("cargokit", CargoKitExtension)
+
+        if (plugin == null) {
+            print("Flutter plugin not found, CargoKit plugin will not be applied.")
+            return;
+        }
+
+        def cargoBuildDir = project.layout.buildDirectory.dir("cargokit").get().asFile.absolutePath
+
+        def appProject = plugin.project
+        def isApplication = appProject.plugins.hasPlugin("com.android.application")
+        def variants = isApplication ? appProject.android.applicationVariants : appProject.android.libraryVariants
+
+        variants.all { variant ->
+            def buildType = variant.buildType.name
+            def cap = { String value ->
+                value.substring(0, 1).toUpperCase() + value.substring(1)
+            }
+
+            def cargoOutputDir = project.layout.buildDirectory.dir("jniLibs/${buildType}").get().asFile
+            cargoOutputDir.mkdirs()
+            def jniLibs = project.android.sourceSets.maybeCreate(buildType).jniLibs
+            jniLibs.srcDir(cargoOutputDir)
+
+            // Flutter passes -Ptarget-platform. The default fat APK list is
+            // android-arm, android-arm64, android-x64. This bridge is built for
+            // arm64-v8a and x86_64, matching rust-toolchain.toml. armeabi-v7a
+            // and the removed x86 ABI are not built.
+            def requestedRaw = appProject.findProperty("target-platform")
+            if (requestedRaw == null) {
+                requestedRaw = project.findProperty("target-platform")
+            }
+            def requested = requestedRaw == null
+                    ? ["android-arm", "android-arm64", "android-x64"]
+                    : requestedRaw.toString().split(",").collect { it.trim() }.findAll { !it.isEmpty() }
+            def allowed = ["android-arm64", "android-x64"] as Set
+            def platforms = requested.findAll { allowed.contains(it) }.unique()
+            if (platforms.isEmpty()) {
+                throw new GradleException(
+                        "The Rust bridge is built for android-arm64 and android-x64. Requested target-platform: ${requested}"
+                )
+            }
+
+            def resolvedNdk = appProject.android.ndkVersion
+            if (resolvedNdk == null || resolvedNdk.toString().isEmpty()) {
+                throw new GradleException("Please set android.ndkVersion in android/app/build.gradle.kts.")
+            }
+            def resolvedNdkVersion = resolvedNdk.toString()
+
+            def minSdkRaw = appProject.android.defaultConfig.minSdkVersion
+            int minSdkInt
+            if (minSdkRaw instanceof Number) {
+                minSdkInt = minSdkRaw as int
+            } else {
+                minSdkInt = minSdkRaw.apiLevel as int
+            }
+
+            def compileRaw = appProject.android.compileSdkVersion
+            int compileSdkInt
+            if (compileRaw instanceof Number) {
+                compileSdkInt = compileRaw as int
+            } else {
+                def text = compileRaw.toString()
+                compileSdkInt = (text.startsWith("android-") ? text.substring("android-".length()) : text) as int
+            }
+
+            def resolvedSdk = resolveAndroidSdk(appProject)
+
+            project.getGradle().afterProject {
+                def taskName = "cargokitCargoBuild${cap(project.cargokit.libname)}${cap(buildType)}"
+                if (project.tasks.findByName(taskName)) {
+                    return
+                }
+
+                def task = project.tasks.create(taskName, CargoKitBuildTask.class) {
+                    buildMode = buildType
+                    buildDir = cargoBuildDir
+                    outputDir = cargoOutputDir.absolutePath
+                    ndkVersion = resolvedNdkVersion
+                    sdkDirectory = resolvedSdk
+                    minSdkVersion = minSdkInt
+                    compileSdkVersion = compileSdkInt
+                    targetPlatforms = platforms
+                    pluginFile = CargoKitPlugin.file
+                }
+                def mergeName = "merge${cap(buildType)}NativeLibs"
+                def onTask = { newTask ->
+                    if (newTask.name == mergeName) {
+                        newTask.dependsOn task
+                        // The .so files are produced in this same build.
+                        newTask.outputs.upToDateWhen { false }
+                    }
+                }
+                project.tasks.each onTask
+                project.tasks.whenTaskAdded onTask
+            }
+        }
+    }
+
+    private static String resolveAndroidSdk(Project appProject) {
+        try {
+            def sdk = appProject.android.sdkDirectory
+            if (sdk != null && sdk.toString().trim()) {
+                return sdk.toString()
+            }
+        } catch (Throwable ignored) {
+        }
+        def localProperties = new File(appProject.rootProject.projectDir, "local.properties")
+        if (localProperties.exists()) {
+            def properties = new Properties()
+            localProperties.withInputStream { properties.load(it) }
+            def dir = properties.getProperty("sdk.dir")
+            if (dir != null && !dir.trim().isEmpty()) {
+                return dir.trim()
+            }
+        }
+        def fromEnv = System.getenv("ANDROID_HOME")
+        if (fromEnv == null || fromEnv.trim().isEmpty()) {
+            fromEnv = System.getenv("ANDROID_SDK_ROOT")
+        }
+        if (fromEnv != null && !fromEnv.trim().isEmpty()) {
+            return fromEnv.trim()
+        }
+        throw new GradleException("Android SDK directory was not found. Set sdk.dir in android/local.properties or ANDROID_HOME.")
+    }
+}

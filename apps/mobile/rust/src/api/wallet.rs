@@ -64,6 +64,11 @@ pub fn import_test_wallet(mut mnemonic: String) -> Result<ImportedWallet, String
 /// Native Sepolia ETH balance. `rpc_url` wins when it is non-empty; otherwise
 /// the adapter reads `COFINEX_SEPOLIA_RPC_URL`.
 ///
+/// The Flutter shell does not pass an empty URL. It fills the field from
+/// `--dart-define=COFINEX_SEPOLIA_RPC_URL`, then the desktop environment, then
+/// `https://ethereum-sepolia-rpc.publicnode.com`. Android has no process
+/// environment, so the define or the public endpoint is what arrives here.
+///
 /// This blocks on a private runtime. The Flutter shell is a test screen.
 pub fn sepolia_balance(address: String, rpc_url: String) -> Result<BalanceView, String> {
     runtime().block_on(async move {

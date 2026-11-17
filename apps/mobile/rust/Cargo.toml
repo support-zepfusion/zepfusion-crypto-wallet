@@ -8,7 +8,7 @@ description = "Flutter bridge for the Cofinex test wallet shell"
 
 [lib]
 name = "cofinex_wallet_bridge"
-crate-type = ["lib", "cdylib"]
+crate-type = ["lib", "cdylib", "staticlib"]
 
 [dependencies]
 cofinex-chains = { path = "../../../crates/chains" }

@@ -1,0 +1,45 @@
+group = "io.cofinex.rust_lib_cofinex_wallet"
+version = "1.0"
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:9.3.1")
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: "com.android.library"
+
+android {
+    namespace = "io.cofinex.rust_lib_cofinex_wallet"
+    compileSdk = 36
+    // Same NDK as Flutter 3.50 and android/app/build.gradle.kts.
+    ndkVersion = "28.2.13676358"
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    defaultConfig {
+        minSdk = 24
+    }
+}
+
+apply from: "../cargokit/gradle/plugin.gradle"
+
+cargokit {
+    // Relative to android/build.gradle (project.buildscript.sourceFile).
+    manifestDir = "../../rust"
+    libname = "cofinex_wallet_bridge"
+}

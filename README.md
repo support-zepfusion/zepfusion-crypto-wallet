@@ -12,6 +12,7 @@ Non-custodial multichain wallet. Flutter UI, Rust core, chain adapters behind a 
 - Secrets sit in `zeroize` buffers. `Debug` redacts mnemonics and private keys. Errors do not echo a recovery phrase.
 - One working adapter: Ethereum Sepolia (chain id `11155111`). The RPC URL comes from `COFINEX_SEPOLIA_RPC_URL` or an argument. The adapter checks `eth_chainId` before any other call and embeds that chain id in the EIP-1559 payload, so a mainnet endpoint is refused. Bitcoin, TRON, Solana, and Sui compile and return "not implemented".
 - Flutter shell (`apps/mobile`) generated with flutter_rust_bridge 2.13.0. The screen creates or imports a test wallet and shows the Sepolia address and native balance.
+- Android packaging of that bridge. Gradle builds `libcofinex_wallet_bridge.so` for `arm64-v8a` and `x86_64` with cargokit and NDK `28.2.13676358`. The debug APK is built in CI.
 - PostgreSQL token registry (`services/registry`): chains, canonical assets, deployments, verification, and a unified-balance view that excludes testnets. Seed data is native assets plus USDC addresses copied from Circle's published list. Sources are cited in the seed migration. No invented contract addresses.
 
 ## What is stubbed
@@ -21,7 +22,7 @@ Non-custodial multichain wallet. Flutter UI, Rust core, chain adapters behind a 
 - Token transfers (the Sepolia adapter sends native ETH only).
 - Registry HTTP API, Redis cache, and the signed snapshot.
 - Recovery, email transfers, escrow, and cross-chain routing. See [docs/ROADMAP.md](docs/ROADMAP.md).
-- Android and iOS packaging of the Rust library (cargokit is not wired). The shell loads `libcofinex_wallet_bridge.so` on the desktop via `COFINEX_RUST_LIB` or a path under the workspace `target/` directory.
+- iOS packaging is wired through the same cargokit pod (`apps/mobile/rust_builder`) but is not built in CI. Desktop builds still load `libcofinex_wallet_bridge.so` via `COFINEX_RUST_LIB` or a path under the workspace `target/` directory.
 
 ## Requirements
 
@@ -74,7 +75,73 @@ export COFINEX_SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 flutter run -d linux
 ```
 
-The create button generates a new BIP-39 phrase and shows it once. It is not written to disk. Do not reuse it on mainnet. Leave the RPC field empty to use `COFINEX_SEPOLIA_RPC_URL`.
+The create button generates a new BIP-39 phrase and shows it once. It is not written to disk. Do not reuse it on mainnet. Leave the RPC field empty to use, in order, `--dart-define=COFINEX_SEPOLIA_RPC_URL`, the desktop `COFINEX_SEPOLIA_RPC_URL` environment variable, or `https://ethereum-sepolia-rpc.publicnode.com`. Android and iOS have no process environment, so the dart-define or the public endpoint is what the Rust adapter receives.
+
+## Android
+
+`flutter run` and `flutter build apk` compile the bridge for `arm64-v8a` and `x86_64` with NDK `28.2.13676358`. The app loads `libcofinex_wallet_bridge.so` by that name. Rust stays on channel `1.100.0` (`rust-toolchain.toml`), including the Android targets. The first cargo invocation installs that toolchain.
+
+Install Flutter 3.50.0, the Rustup default (so `cargo` exists), and Android SDK command-line tools. Install NDK `28.2.13676358`, platform `android-36`, and build-tools `36.0.0`. The SDK's default location is `%LOCALAPPDATA%\Android\Sdk` on Windows and `$HOME/Android/Sdk` on Linux. Point `ANDROID_HOME` at it. An x86_64 emulator image is required for `emulator-5554`.
+
+### Linux
+
+```bash
+export ANDROID_HOME="$HOME/Android/Sdk"
+export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+yes | sdkmanager --licenses
+sdkmanager --install \
+  "platform-tools" \
+  "emulator" \
+  "platforms;android-36" \
+  "build-tools;36.0.0" \
+  "ndk;28.2.13676358" \
+  "system-images;android-35;google_apis;x86_64"
+echo no | avdmanager create avd --name cofinex_x86_64 --package "system-images;android-35;google_apis;x86_64" --device pixel
+cd apps/mobile
+flutter pub get
+flutter emulators --launch cofinex_x86_64
+flutter run -d emulator-5554
+```
+
+Override the Sepolia endpoint at build time:
+
+```bash
+flutter run -d emulator-5554 --dart-define=COFINEX_SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
+```
+
+A debug APK with both ABIs:
+
+```bash
+cd apps/mobile
+flutter build apk --debug
+unzip -l build/app/outputs/flutter-apk/app-debug.apk | grep libcofinex_wallet_bridge.so
+```
+
+### Windows (PowerShell)
+
+Cargo is resolved from `%USERPROFILE%\.cargo\bin` even when that directory is not on `PATH`. Adding it for the session makes `cargo` available in the shell too.
+
+```powershell
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+$env:Path = "$env:USERPROFILE\.cargo\bin;$env:ANDROID_HOME\cmdline-tools\latest\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\emulator;$env:Path"
+cmd /c "echo y| sdkmanager --licenses"
+sdkmanager --install "platform-tools" "emulator" "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" "system-images;android-35;google_apis;x86_64"
+echo no | avdmanager create avd --name cofinex_x86_64 --package "system-images;android-35;google_apis;x86_64" --device pixel
+Set-Location apps\mobile
+flutter pub get
+flutter emulators --launch cofinex_x86_64
+flutter run -d emulator-5554
+```
+
+Same dart-define as on Linux:
+
+```powershell
+flutter run -d emulator-5554 --dart-define=COFINEX_SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
+```
+
+Open the app and tap **Create test wallet**. The screen shows a new 12-word phrase and the Sepolia address (`0x` plus 40 hex characters). Nothing is written to disk. Do not reuse the phrase on mainnet.
+
+macOS uses the Linux commands with `ANDROID_HOME` at `$HOME/Library/Android/sdk` when Android Studio created the SDK there. The NDK prebuilt is selected from the host (`darwin-arm64` or `darwin-x86_64`).
 
 ## Token registry
 

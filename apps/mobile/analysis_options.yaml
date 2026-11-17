@@ -15,6 +15,8 @@ analyzer:
     - android/**
     - ios/**
     - linux/**
+    # Vendored cargokit is its own Dart package. It is not part of this app.
+    - rust_builder/cargokit/**
 
 linter:
   # The lint rules applied to this project can be customized in the

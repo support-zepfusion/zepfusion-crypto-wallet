@@ -126,12 +126,12 @@ class _WalletHomeState extends State<WalletHome> {
             ),
             if (wallet != null) ...[
               const SizedBox(height: 24),
-              Text('Sepolia address', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
-              SelectableText(
-                wallet.sepoliaAddress,
-                key: const Key('address'),
+              Text(
+                'Sepolia address',
+                style: Theme.of(context).textTheme.titleMedium,
               ),
+              const SizedBox(height: 4),
+              SelectableText(wallet.sepoliaAddress, key: const Key('address')),
               if (wallet.mnemonic != null) ...[
                 const SizedBox(height: 16),
                 Text(
@@ -148,7 +148,9 @@ class _WalletHomeState extends State<WalletHome> {
                 autocorrect: false,
                 decoration: const InputDecoration(
                   labelText: 'Sepolia RPC URL',
-                  helperText: 'Leave empty to use COFINEX_SEPOLIA_RPC_URL.',
+                  helperText:
+                      'Leave empty to use --dart-define=COFINEX_SEPOLIA_RPC_URL, '
+                      'the desktop COFINEX_SEPOLIA_RPC_URL variable, or the public Sepolia endpoint.',
                   border: OutlineInputBorder(),
                 ),
               ),

@@ -208,6 +208,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.9.1"
+  rust_lib_cofinex_wallet:
+    dependency: "direct main"
+    description:
+      path: rust_builder
+      relative: true
+    source: path
+    version: "0.0.1"
   sky_engine:
     dependency: transitive
     description: flutter

@@ -4,13 +4,14 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 import 'rust/api/wallet.dart' as rust;
 import 'rust/frb_generated.dart';
+import 'sepolia_rpc.dart';
 import 'wallet_api.dart';
 
-/// Live adapter. Loads `libcofinex_wallet_bridge.so`.
+/// Live adapter. Loads `libcofinex_wallet_bridge`.
 ///
-/// `COFINEX_RUST_LIB` overrides discovery. Otherwise the workspace debug or
-/// release build at the repository root is used. Android and iOS packaging
-/// is not wired in this scaffold, so a device build will not find the library.
+/// Android and iOS use the library packaged into the app (its default name).
+/// Desktop builds still honor `COFINEX_RUST_LIB`, then a workspace `target/`
+/// path.
 class RustWalletApi implements WalletApi {
   Future<void>? _ready;
 
@@ -25,7 +26,21 @@ class RustWalletApi implements WalletApi {
     );
   }
 
+  String _rpcUrl(String field) {
+    final mobile = Platform.isAndroid || Platform.isIOS;
+    return resolveSepoliaRpcUrl(
+      field,
+      environmentUrl: mobile
+          ? null
+          : Platform.environment['COFINEX_SEPOLIA_RPC_URL'],
+      allowEnvironment: !mobile,
+    );
+  }
+
   String? _libraryPath() {
+    if (Platform.isAndroid || Platform.isIOS) {
+      return null;
+    }
     final override = Platform.environment['COFINEX_RUST_LIB'];
     if (override != null && override.isNotEmpty) {
       return override;
@@ -66,7 +81,10 @@ class RustWalletApi implements WalletApi {
     required String rpcUrl,
   }) async {
     await _ensureReady();
-    final balance = await rust.sepoliaBalance(address: address, rpcUrl: rpcUrl);
+    final balance = await rust.sepoliaBalance(
+      address: address,
+      rpcUrl: _rpcUrl(rpcUrl),
+    );
     return BalanceSnapshot(
       symbol: balance.symbol,
       baseUnits: balance.baseUnits,
