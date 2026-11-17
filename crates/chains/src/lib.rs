@@ -10,7 +10,10 @@
 mod evm;
 mod stub;
 
-pub use evm::{EvmAdapter, HttpRpc, SEPOLIA_CHAIN_ID};
+pub use evm::{
+    format_eip55, native_transfer_fee, parse_evm_address, EvmAdapter, HttpRpc, NativeFee,
+    SEPOLIA_CHAIN_ID,
+};
 pub use stub::StubAdapter;
 
 use cofinex_core::ChainId;

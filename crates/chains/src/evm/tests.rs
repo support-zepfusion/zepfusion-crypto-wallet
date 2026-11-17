@@ -1,11 +1,11 @@
 use std::sync::Mutex;
 
 use async_trait::async_trait;
-use cofinex_core::{Address, ChainAdapter, ChainError, ChainId, TxStatus, Wallet};
+use cofinex_core::{Address, ChainAdapter, ChainError, ChainId, TransferIntent, TxStatus, Wallet};
 use cofinex_signer::{LocalSigner, MpcSigner};
 use serde_json::{json, Value};
 
-use super::adapter::EvmAdapter;
+use super::adapter::{native_transfer_fee, EvmAdapter};
 use super::rpc::EvmRpc;
 use super::SEPOLIA_CHAIN_ID;
 
@@ -69,6 +69,22 @@ async fn balance_and_sign_stay_on_sepolia() {
     assert_eq!(balance.symbol, "ETH");
     assert_eq!(balance.base_units, "1000000000000000000");
     assert_eq!(balance.display, "1");
+
+    let path = adapter.derivation_path(0).unwrap();
+    let unsigned = adapter
+        .build_unsigned_tx(&TransferIntent {
+            from: address.clone(),
+            to: address.clone(),
+            amount_base_units: "1".to_string(),
+            path,
+        })
+        .await
+        .unwrap();
+    let fee = native_transfer_fee(&unsigned).unwrap();
+    assert_eq!(fee.gas_limit, 21_000);
+    assert_eq!(fee.max_priority_fee_per_gas, 1_000_000_000);
+    assert_eq!(fee.max_fee_per_gas, 3_000_000_000);
+    assert_eq!(fee.max_fee_wei, 63_000_000_000_000);
 
     let wallet = Wallet::new(LocalSigner::from_mnemonic(ABANDON, "").unwrap());
     let signed = wallet

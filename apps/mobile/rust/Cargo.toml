@@ -11,10 +11,16 @@ name = "cofinex_wallet_bridge"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [dependencies]
+aes-gcm = "0.10.3"
+base64 = "0.22.1"
 cofinex-chains = { path = "../../../crates/chains" }
 cofinex-core = { path = "../../../crates/core" }
 cofinex-signer = { path = "../../../crates/signer" }
 flutter_rust_bridge = "=2.13.0"
+pbkdf2 = "0.12.2"
+rand = "0.8.5"
+serde_json.workspace = true
+sha2.workspace = true
 tokio.workspace = true
 zeroize.workspace = true
 

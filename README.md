@@ -11,13 +11,18 @@ Non-custodial multichain wallet. Flutter UI, Rust core, chain adapters behind a 
 - `Signer`: `LocalSigner` (BIP-39 + BIP-32 / SLIP-0010) is the only implementation. `MpcSigner::two_of_three` is a documented stub that returns "not implemented". Adapters depend on the trait, so replacing the local signer with CGGMP21 (ECDSA) or FROST (EdDSA) does not require adapter changes.
 - Secrets sit in `zeroize` buffers. `Debug` redacts mnemonics and private keys. Errors do not echo a recovery phrase.
 - One working adapter: Ethereum Sepolia (chain id `11155111`). The RPC URL comes from `COFINEX_SEPOLIA_RPC_URL` or an argument. The adapter checks `eth_chainId` before any other call and embeds that chain id in the EIP-1559 payload, so a mainnet endpoint is refused. Bitcoin, TRON, Solana, and Sui compile and return "not implemented".
-- Flutter shell (`apps/mobile`) generated with flutter_rust_bridge 2.13.0. The screen creates or imports a test wallet and shows the Sepolia address and native balance.
+- Flutter wallet (`apps/mobile`) on flutter_rust_bridge 2.13.0. Self-custody create and restore, encrypted phrase storage, unlock, Sepolia balance, receive, and a Sepolia ETH send. Email sign-in and business multisig are coming-soon screens.
 - Android packaging of that bridge. Gradle builds `libcofinex_wallet_bridge.so` for `arm64-v8a` and `x86_64` with cargokit and NDK `28.2.13676358`. The debug APK is built in CI.
 - PostgreSQL token registry (`services/registry`): chains, canonical assets, deployments, verification, and a unified-balance view that excludes testnets. Seed data is native assets plus USDC addresses copied from Circle's published list. Sources are cited in the seed migration. No invented contract addresses.
 
 ## What is stubbed
 
-- MPC signing, key refresh, and share storage.
+- Email sign-in and the 2-of-3 MPC signer (`MpcSigner::two_of_three` returns "not implemented"). The welcome screen collects an email address and does not send it.
+- Business multisig. The setup sheet opens a coming-soon screen.
+- Swap and buy. The home actions stay disabled.
+- Fiat prices. Balances are shown in the asset's own units.
+- Non-Sepolia networks. The network sheet lists them and leaves them disabled.
+- An activity indexer. The activity tab shows transfers this install broadcast.
 - Bitcoin, TRON, Solana, and Sui balance, build, broadcast, and status.
 - Token transfers (the Sepolia adapter sends native ETH only).
 - Registry HTTP API, Redis cache, and the signed snapshot.
@@ -75,7 +80,11 @@ export COFINEX_SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 flutter run -d linux
 ```
 
-The create button generates a new BIP-39 phrase and shows it once. It is not written to disk. Do not reuse it on mainnet. Leave the RPC field empty to use, in order, `--dart-define=COFINEX_SEPOLIA_RPC_URL`, the desktop `COFINEX_SEPOLIA_RPC_URL` environment variable, or `https://ethereum-sepolia-rpc.publicnode.com`. Android and iOS have no process environment, so the dart-define or the public endpoint is what the Rust adapter receives.
+Creating or restoring a wallet seals the BIP-39 phrase before it is stored. The bridge runs PBKDF2-HMAC-SHA256 (600,000 iterations) and AES-256-GCM, and Flutter writes that payload with `flutter_secure_storage` (Android Keystore). The phrase is not stored in plaintext. Unlock asks for the password again. Optional biometric unlock stores the AES key in the same Keystore and asks `local_auth` before using it. The app locks after 60 seconds without a touch, and again when it returns to the foreground after that idle window. Reset wallet deletes the stored payload. Do not reuse a test phrase on mainnet.
+
+Sepolia is the only network that can send. Quote and broadcast go through the existing `Signer` and `ChainAdapter` (EIP-1559, `LocalSigner`). Bitcoin, TRON, Solana, and Sui stay disabled in the network sheet.
+
+The RPC URL is, in order, `--dart-define=COFINEX_SEPOLIA_RPC_URL`, the desktop `COFINEX_SEPOLIA_RPC_URL` environment variable, or `https://ethereum-sepolia-rpc.publicnode.com`. Android and iOS have no process environment, so the dart-define or the public endpoint is what the Rust adapter receives. Widget tests use a fake API and a test cipher. They do not run the production KDF and they do not load the native library.
 
 ## Android
 
@@ -139,7 +148,7 @@ Same dart-define as on Linux:
 flutter run -d emulator-5554 --dart-define=COFINEX_SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 ```
 
-Open the app and tap **Create test wallet**. The screen shows a new 12-word phrase and the Sepolia address (`0x` plus 40 hex characters). Nothing is written to disk. Do not reuse the phrase on mainnet.
+Open the app, choose **Other ways to set up**, then **Self-custody wallet**. After the password and the recovery phrase, the home screen shows Account 1, the Sepolia address, and the ETH balance. The encrypted phrase is stored on the device. Unlock with the password on the next launch. Do not reuse the phrase on mainnet.
 
 macOS uses the Linux commands with `ANDROID_HOME` at `$HOME/Library/Android/sdk` when Android Studio created the SDK there. The NDK prebuilt is selected from the host (`darwin-arm64` or `darwin-x86_64`).
 

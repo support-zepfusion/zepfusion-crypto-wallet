@@ -6,6 +6,7 @@
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
+import 'api/vault.dart';
 import 'api/wallet.dart';
 
 import 'dart:async';
@@ -75,10 +76,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_created_wallet(CreatedWallet self, SseSerializer serializer);
 
   @protected
-  void sse_encode_imported_wallet(ImportedWallet self, SseSerializer serializer);
+  void sse_encode_imported_wallet(
+    ImportedWallet self,
+    SseSerializer serializer,
+  );
 
   @protected
-  void sse_encode_list_prim_u_8_strict(Uint8List self, SseSerializer serializer);
+  void sse_encode_list_prim_u_8_strict(
+    Uint8List self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_u_8(int self, SseSerializer serializer);

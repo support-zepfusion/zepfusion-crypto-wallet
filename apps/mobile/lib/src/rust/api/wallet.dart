@@ -13,7 +13,8 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// Create a 12-word English test wallet and its Sepolia address.
 ///
 /// The phrase is returned so the UI can display it. Do not log the return value.
-Future<CreatedWallet> createTestWallet() => RustLib.instance.api.crateApiWalletCreateTestWallet();
+Future<CreatedWallet> createTestWallet() =>
+    RustLib.instance.api.crateApiWalletCreateTestWallet();
 
 /// Import an English BIP-39 phrase. The error text never includes the phrase.
 Future<ImportedWallet> importTestWallet({required String mnemonic}) =>
@@ -22,16 +23,51 @@ Future<ImportedWallet> importTestWallet({required String mnemonic}) =>
 /// Native Sepolia ETH balance. `rpc_url` wins when it is non-empty; otherwise
 /// the adapter reads `COFINEX_SEPOLIA_RPC_URL`.
 ///
-/// This blocks on a private runtime. The Flutter shell is a test screen.
-Future<BalanceView> sepoliaBalance({required String address, required String rpcUrl}) =>
-    RustLib.instance.api.crateApiWalletSepoliaBalance(address: address, rpcUrl: rpcUrl);
+/// This blocks on a private runtime.
+Future<BalanceView> sepoliaBalance({
+  required String address,
+  required String rpcUrl,
+}) => RustLib.instance.api.crateApiWalletSepoliaBalance(
+  address: address,
+  rpcUrl: rpcUrl,
+);
+
+/// Worst-case fee for a native Sepolia transfer. Does not sign or broadcast.
+Future<FeeQuote> quoteSepoliaTransfer({
+  required String from,
+  required String to,
+  required String amountEth,
+  required String rpcUrl,
+}) => RustLib.instance.api.crateApiWalletQuoteSepoliaTransfer(
+  from: from,
+  to: to,
+  amountEth: amountEth,
+  rpcUrl: rpcUrl,
+);
+
+/// Sign and broadcast a native Sepolia ETH transfer. Testnet only.
+Future<SendReceipt> sendSepoliaEth({
+  required String mnemonic,
+  required String to,
+  required String amountEth,
+  required String rpcUrl,
+}) => RustLib.instance.api.crateApiWalletSendSepoliaEth(
+  mnemonic: mnemonic,
+  to: to,
+  amountEth: amountEth,
+  rpcUrl: rpcUrl,
+);
 
 class BalanceView {
   final String symbol;
   final String baseUnits;
   final String display;
 
-  const BalanceView({required this.symbol, required this.baseUnits, required this.display});
+  const BalanceView({
+    required this.symbol,
+    required this.baseUnits,
+    required this.display,
+  });
 
   @override
   int get hashCode => symbol.hashCode ^ baseUnits.hashCode ^ display.hashCode;
@@ -63,6 +99,57 @@ class CreatedWallet {
           runtimeType == other.runtimeType &&
           mnemonic == other.mnemonic &&
           sepoliaAddress == other.sepoliaAddress;
+}
+
+class FeeQuote {
+  final String gasLimit;
+  final String maxFeePerGasWei;
+  final String maxPriorityFeePerGasWei;
+  final String maxFeeWei;
+  final String maxFeeDisplay;
+
+  const FeeQuote({
+    required this.gasLimit,
+    required this.maxFeePerGasWei,
+    required this.maxPriorityFeePerGasWei,
+    required this.maxFeeWei,
+    required this.maxFeeDisplay,
+  });
+
+  @override
+  int get hashCode =>
+      gasLimit.hashCode ^
+      maxFeePerGasWei.hashCode ^
+      maxPriorityFeePerGasWei.hashCode ^
+      maxFeeWei.hashCode ^
+      maxFeeDisplay.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FeeQuote &&
+          runtimeType == other.runtimeType &&
+          gasLimit == other.gasLimit &&
+          maxFeePerGasWei == other.maxFeePerGasWei &&
+          maxPriorityFeePerGasWei == other.maxPriorityFeePerGasWei &&
+          maxFeeWei == other.maxFeeWei &&
+          maxFeeDisplay == other.maxFeeDisplay;
+}
+
+class SendReceipt {
+  final String txHash;
+
+  const SendReceipt({required this.txHash});
+
+  @override
+  int get hashCode => txHash.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SendReceipt &&
+          runtimeType == other.runtimeType &&
+          txHash == other.txHash;
 }
 
 class ImportedWallet {

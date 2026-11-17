@@ -329,6 +329,43 @@ impl StoredTx {
     }
 }
 
+/// Worst-case native-transfer fee stored on an unsigned Sepolia transaction.
+///
+/// `max_fee_wei` is `gas_limit * max_fee_per_gas`. The adapter sets that cap to
+/// `2 * base_fee + priority_fee`, so this is the most the transfer can cost.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NativeFee {
+    pub gas_limit: u64,
+    pub max_fee_per_gas: u128,
+    pub max_priority_fee_per_gas: u128,
+    pub max_fee_wei: u128,
+}
+
+pub fn native_transfer_fee(unsigned: &UnsignedTx) -> Result<NativeFee, ChainError> {
+    if unsigned.chain != ChainId::EthereumSepolia {
+        return Err(ChainError::InvalidTransaction);
+    }
+    let stored: StoredTx =
+        serde_json::from_slice(&unsigned.body).map_err(|_| ChainError::InvalidTransaction)?;
+    let max_fee_per_gas = stored
+        .max_fee_per_gas
+        .parse::<u128>()
+        .map_err(|_| ChainError::InvalidTransaction)?;
+    let max_priority_fee_per_gas = stored
+        .max_priority_fee_per_gas
+        .parse::<u128>()
+        .map_err(|_| ChainError::InvalidTransaction)?;
+    let max_fee_wei = u128::from(stored.gas_limit)
+        .checked_mul(max_fee_per_gas)
+        .ok_or(ChainError::InvalidAmount)?;
+    Ok(NativeFee {
+        gas_limit: stored.gas_limit,
+        max_fee_per_gas,
+        max_priority_fee_per_gas,
+        max_fee_wei,
+    })
+}
+
 fn expect_hex(value: &Value) -> Result<&str, ChainError> {
     value
         .as_str()

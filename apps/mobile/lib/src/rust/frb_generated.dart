@@ -3,13 +3,15 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/vault.dart';
 import 'api/wallet.dart';
 
 import 'dart:async';
 import 'dart:convert';
 
 import 'frb_generated.dart';
-import 'frb_generated.io.dart' if (dart.library.js_interop) 'frb_generated.web.dart';
+import 'frb_generated.io.dart'
+    if (dart.library.js_interop) 'frb_generated.web.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
@@ -48,10 +50,12 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   static void dispose() => instance.disposeImpl();
 
   @override
-  ApiImplConstructor<RustLibApiImpl, RustLibWire> get apiImplConstructor => RustLibApiImpl.new;
+  ApiImplConstructor<RustLibApiImpl, RustLibWire> get apiImplConstructor =>
+      RustLibApiImpl.new;
 
   @override
-  WireConstructor<RustLibWire> get wireConstructor => RustLibWire.fromExternalLibrary;
+  WireConstructor<RustLibWire> get wireConstructor =>
+      RustLibWire.fromExternalLibrary;
 
   @override
   Future<void> executeRustInitializers() async {}
@@ -66,22 +70,59 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   @override
   int get rustContentHash => -2106689632;
 
-  static const kDefaultExternalLibraryLoaderConfig = ExternalLibraryLoaderConfig(
-    stem: 'cofinex_wallet_bridge',
-    ioDirectory: 'rust/target/release/',
-    webPrefix: 'pkg/',
-    wasmBindgenName: 'wasm_bindgen',
-  );
+  static const kDefaultExternalLibraryLoaderConfig =
+      ExternalLibraryLoaderConfig(
+        stem: 'cofinex_wallet_bridge',
+        ioDirectory: 'rust/target/release/',
+        webPrefix: 'pkg/',
+        wasmBindgenName: 'wasm_bindgen',
+      );
 }
 
 abstract class RustLibApi extends BaseApi {
   Future<CreatedWallet> crateApiWalletCreateTestWallet();
 
-  Future<ImportedWallet> crateApiWalletImportTestWallet({required String mnemonic});
+  Future<ImportedWallet> crateApiWalletImportTestWallet({
+    required String mnemonic,
+  });
 
   Future<BalanceView> crateApiWalletSepoliaBalance({
     required String address,
     required String rpcUrl,
+  });
+
+  Future<FeeQuote> crateApiWalletQuoteSepoliaTransfer({
+    required String from,
+    required String to,
+    required String amountEth,
+    required String rpcUrl,
+  });
+
+  Future<SendReceipt> crateApiWalletSendSepoliaEth({
+    required String mnemonic,
+    required String to,
+    required String amountEth,
+    required String rpcUrl,
+  });
+
+  Future<String> crateApiVaultSealMnemonic({
+    required String mnemonic,
+    required String password,
+  });
+
+  Future<String> crateApiVaultOpenMnemonic({
+    required String payload,
+    required String password,
+  });
+
+  Future<String> crateApiVaultWrappingKey({
+    required String payload,
+    required String password,
+  });
+
+  Future<String> crateApiVaultOpenWithWrappingKey({
+    required String payload,
+    required String wrappingKey,
   });
 }
 
@@ -99,7 +140,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1, port: port_);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 1,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_created_wallet,
@@ -116,13 +162,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "create_test_wallet", argNames: []);
 
   @override
-  Future<ImportedWallet> crateApiWalletImportTestWallet({required String mnemonic}) {
+  Future<ImportedWallet> crateApiWalletImportTestWallet({
+    required String mnemonic,
+  }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(mnemonic, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2, port: port_);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_imported_wallet,
@@ -136,7 +189,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiWalletImportTestWalletConstMeta =>
-      const TaskConstMeta(debugName: "import_test_wallet", argNames: ["mnemonic"]);
+      const TaskConstMeta(
+        debugName: "import_test_wallet",
+        argNames: ["mnemonic"],
+      );
 
   @override
   Future<BalanceView> crateApiWalletSepoliaBalance({
@@ -149,7 +205,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(address, serializer);
           sse_encode_String(rpcUrl, serializer);
-          pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3, port: port_);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_balance_view,
@@ -163,7 +224,225 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta get kCrateApiWalletSepoliaBalanceConstMeta =>
-      const TaskConstMeta(debugName: "sepolia_balance", argNames: ["address", "rpcUrl"]);
+      const TaskConstMeta(
+        debugName: "sepolia_balance",
+        argNames: ["address", "rpcUrl"],
+      );
+
+  @override
+  Future<FeeQuote> crateApiWalletQuoteSepoliaTransfer({
+    required String from,
+    required String to,
+    required String amountEth,
+    required String rpcUrl,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(from, serializer);
+          sse_encode_String(to, serializer);
+          sse_encode_String(amountEth, serializer);
+          sse_encode_String(rpcUrl, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_fee_quote,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiWalletQuoteSepoliaTransferConstMeta,
+        argValues: [from, to, amountEth, rpcUrl],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiWalletQuoteSepoliaTransferConstMeta =>
+      const TaskConstMeta(
+        debugName: "quote_sepolia_transfer",
+        argNames: ["from", "to", "amountEth", "rpcUrl"],
+      );
+
+  @override
+  Future<SendReceipt> crateApiWalletSendSepoliaEth({
+    required String mnemonic,
+    required String to,
+    required String amountEth,
+    required String rpcUrl,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(mnemonic, serializer);
+          sse_encode_String(to, serializer);
+          sse_encode_String(amountEth, serializer);
+          sse_encode_String(rpcUrl, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_send_receipt,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiWalletSendSepoliaEthConstMeta,
+        argValues: [mnemonic, to, amountEth, rpcUrl],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiWalletSendSepoliaEthConstMeta =>
+      const TaskConstMeta(
+        debugName: "send_sepolia_eth",
+        argNames: ["mnemonic", "to", "amountEth", "rpcUrl"],
+      );
+
+  @override
+  Future<String> crateApiVaultSealMnemonic({
+    required String mnemonic,
+    required String password,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(mnemonic, serializer);
+          sse_encode_String(password, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiVaultSealMnemonicConstMeta,
+        argValues: [mnemonic, password],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVaultSealMnemonicConstMeta => const TaskConstMeta(
+    debugName: "seal_mnemonic",
+    argNames: ["mnemonic", "password"],
+  );
+
+  @override
+  Future<String> crateApiVaultOpenMnemonic({
+    required String payload,
+    required String password,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(payload, serializer);
+          sse_encode_String(password, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiVaultOpenMnemonicConstMeta,
+        argValues: [payload, password],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVaultOpenMnemonicConstMeta => const TaskConstMeta(
+    debugName: "open_mnemonic",
+    argNames: ["payload", "password"],
+  );
+
+  @override
+  Future<String> crateApiVaultWrappingKey({
+    required String payload,
+    required String password,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(payload, serializer);
+          sse_encode_String(password, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 8,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiVaultWrappingKeyConstMeta,
+        argValues: [payload, password],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVaultWrappingKeyConstMeta => const TaskConstMeta(
+    debugName: "wrapping_key",
+    argNames: ["payload", "password"],
+  );
+
+  @override
+  Future<String> crateApiVaultOpenWithWrappingKey({
+    required String payload,
+    required String wrappingKey,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(payload, serializer);
+          sse_encode_String(wrappingKey, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 9,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiVaultOpenWithWrappingKeyConstMeta,
+        argValues: [payload, wrappingKey],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVaultOpenWithWrappingKeyConstMeta =>
+      const TaskConstMeta(
+        debugName: "open_with_wrapping_key",
+        argNames: ["payload", "wrappingKey"],
+      );
 
   @protected
   String dco_decode_String(dynamic raw) {
@@ -175,7 +454,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BalanceView dco_decode_balance_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3) throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
     return BalanceView(
       symbol: dco_decode_String(arr[0]),
       baseUnits: dco_decode_String(arr[1]),
@@ -187,7 +467,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   CreatedWallet dco_decode_created_wallet(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 2) throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
     return CreatedWallet(
       mnemonic: dco_decode_String(arr[0]),
       sepoliaAddress: dco_decode_String(arr[1]),
@@ -198,7 +479,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ImportedWallet dco_decode_imported_wallet(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 1) throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
     return ImportedWallet(sepoliaAddress: dco_decode_String(arr[0]));
   }
 
@@ -227,7 +509,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_symbol = sse_decode_String(deserializer);
     var var_baseUnits = sse_decode_String(deserializer);
     var var_display = sse_decode_String(deserializer);
-    return BalanceView(symbol: var_symbol, baseUnits: var_baseUnits, display: var_display);
+    return BalanceView(
+      symbol: var_symbol,
+      baseUnits: var_baseUnits,
+      display: var_display,
+    );
   }
 
   @protected
@@ -235,7 +521,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_mnemonic = sse_decode_String(deserializer);
     var var_sepoliaAddress = sse_decode_String(deserializer);
-    return CreatedWallet(mnemonic: var_mnemonic, sepoliaAddress: var_sepoliaAddress);
+    return CreatedWallet(
+      mnemonic: var_mnemonic,
+      sepoliaAddress: var_sepoliaAddress,
+    );
+  }
+
+  @protected
+  FeeQuote sse_decode_fee_quote(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_gasLimit = sse_decode_String(deserializer);
+    var var_maxFeePerGasWei = sse_decode_String(deserializer);
+    var var_maxPriorityFeePerGasWei = sse_decode_String(deserializer);
+    var var_maxFeeWei = sse_decode_String(deserializer);
+    var var_maxFeeDisplay = sse_decode_String(deserializer);
+    return FeeQuote(
+      gasLimit: var_gasLimit,
+      maxFeePerGasWei: var_maxFeePerGasWei,
+      maxPriorityFeePerGasWei: var_maxPriorityFeePerGasWei,
+      maxFeeWei: var_maxFeeWei,
+      maxFeeDisplay: var_maxFeeDisplay,
+    );
+  }
+
+  @protected
+  SendReceipt sse_decode_send_receipt(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_txHash = sse_decode_String(deserializer);
+    return SendReceipt(txHash: var_txHash);
   }
 
   @protected
@@ -292,13 +605,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_imported_wallet(ImportedWallet self, SseSerializer serializer) {
+  void sse_encode_imported_wallet(
+    ImportedWallet self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.sepoliaAddress, serializer);
   }
 
   @protected
-  void sse_encode_list_prim_u_8_strict(Uint8List self, SseSerializer serializer) {
+  void sse_encode_list_prim_u_8_strict(
+    Uint8List self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     serializer.buffer.putUint8List(self);
